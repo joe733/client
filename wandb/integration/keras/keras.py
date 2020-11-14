@@ -297,7 +297,9 @@ class WandbCallback(keras.callbacks.Callback):
 
         self._prediction_batch_size = None
 
-        if self.training_data:
+        if self.log_gradients:
+            if self.training_data is None:
+            raise ValueError("training_data argument is required for gradient logging.")
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
 
@@ -328,6 +330,23 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+    def _build_loss_model(self):
+        inputs = self.model.inputs
+        model_out = self.model(inputs)
+        if isinstance(model_out, list):
+            ground_truth = [tf.keras.layers.Input(shape=out.shape[1:]) for out in model_out]
+        else:
+            ground_truth = [tf.keras.layers.Input(shape=model_out.shape[1:])]
+            model_out = [model_out]
+        losses = []
+        loss_f = model.loss
+        if not callable(loss_f):
+            loss_f = tf.keras.losses.get(loss_f)
+        for y_true, y_pred in zip(ground_truth, model_output):
+            losses.append(loss_f(y_true, y_pred))
+        total_loss = tf.keras.layers.add(loss)
+        self._loss_model = tf.keras.layers.Model(inputs + ground_truth, total_loss)
+
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
 
@@ -348,6 +367,7 @@ class WandbCallback(keras.callbacks.Callback):
             )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
+        self._build_loss_model()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
@@ -642,19 +662,17 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
-        if not self.training_data:
-            raise ValueError("Need to pass in training data if logging gradients")
-
-        x_train = self.training_data[0]
-        y_train = self.training_data[1]
-        metrics = {}
-        weights = self.model.trainable_weights
-        loss_f = self.model.loss
-        if not callable(loss_f):
-            loss_f = keras.losses.get(loss_f)
+        if len(self.model.inputs) == 1:
+            x = [self.training_data[0]]
+        else:
+            x = self.training_data[0]
+        if len(self.model.outputs) == 1:
+            y = [self.training_data[1]]
+        else:
+            y  = self.training_data[1]
         with tf.GradientTape() as tape:
-            y_pred = self.model(x_train, training=True)
-            loss = loss_f(y_train, y_pred)
+            loss = self._loss_model(x + y)
+        weights = self. model.trainable_weights
         grads = tape.gradient(loss, weights)
         for (weight, grad) in zip(weights, grads):
             metrics[
