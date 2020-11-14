@@ -330,6 +330,24 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
+    def _get_training_data_batch_size(self):
+        for inp in model.inputs:
+            if inp.shape[0] is not None:
+                self._training_data_batch_size = inp.shape[0]
+                return
+        X, Y = self.training_data
+        if len(self.model.inputs) == 1:
+            X = [X]
+        if len(self.model.outputs) == 1:
+            Y = [Y]
+        x_batch = [x[0] for x in X]
+        x_batch_num_bytes = [x.itemsize * x.size for x in x_batch]
+        y_batch = [y[0] for y in Y]
+        y_batch_num_bytes = [y.itemsize * y.size for y in y_batch]
+        batch_num_bytes = x_batch_num_bytes = y_batch_num_bytes
+        MAX_MB = 100
+        self._training_data_batch_size = int(MAX_MB * 1024 * 1024 / batch_num_bytes)
+
     def _build_loss_model(self):
         inputs = self.model.inputs
         model_out = self.model(inputs)
@@ -350,13 +368,14 @@ class WandbCallback(keras.callbacks.Callback):
             total_loss = tf.keras.layers.add(losses)
         self._loss_model = tf.keras.models.Model(inputs + ground_truth, total_loss)
 
-    def _training_data_generator(self, batch_size=32):
+    def _training_data_generator(self):
         X, Y = self.training_data
         if len(self.model.inputs) == 1:
             X = [X]
         if len(self.model.outputs) == 1:
             Y = [Y]
         idx = 0
+        batch_size = self._training_data_batch_size
         while idx < len(X[0]):
             x_slice = [x[idx: idx + batch_size] for x in X]
             y_slice = [y[idx: idx + batch_size] for y in Y]
@@ -384,6 +403,7 @@ class WandbCallback(keras.callbacks.Callback):
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
         self._build_loss_model()
+        self._get_training_data_batch_size()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
