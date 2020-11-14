@@ -679,19 +679,18 @@ class WandbCallback(keras.callbacks.Callback):
 
     def _log_gradients(self):
         weights = self. model.trainable_weights
-        grads = [list() for _ in weights]
+        grads = [np.zeros(tuple(w.shape)) for w in weights]
         for x, y in self._training_data_generator():
             with tf.GradientTape() as tape:
                 loss = self._loss_model(x + y)
             batch_grads = tape.gradient(loss, weights)
             for g, bg in zip(grads, batch_grads):
-                g.append(bg)
-        grads = [tf.reduce_sum(g, axis=0) for g in grads]
+                g += bg.numpy()
         metrics = {}
-        for (weight, grad) in zip(weights, grads_total):
+        for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
-            ] = wandb.Histogram(grad.numpy())
+            ] = wandb.Histogram(grad)
         return metrics
 
     def _log_dataframe(self):
