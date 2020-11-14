@@ -299,7 +299,7 @@ class WandbCallback(keras.callbacks.Callback):
 
         if self.log_gradients:
             if self.training_data is None:
-            raise ValueError("training_data argument is required for gradient logging.")
+                raise ValueError("training_data argument is required for gradient logging.")
             if len(self.training_data) != 2:
                 raise ValueError("training data must be a tuple of length two")
 
