@@ -347,6 +347,7 @@ class WandbCallback(keras.callbacks.Callback):
         batch_num_bytes = x_batch_num_bytes = y_batch_num_bytes
         MAX_MB = 10
         self._training_data_batch_size = int(MAX_MB * 1024 * 1024 / batch_num_bytes)
+        wandb.termlog("Batch size: " + self._training_data_batch_size)
 
     def _build_loss_model(self):
         inputs = self.model.inputs
