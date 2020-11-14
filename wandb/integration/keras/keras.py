@@ -350,6 +350,19 @@ class WandbCallback(keras.callbacks.Callback):
             total_loss = tf.keras.layers.add(losses)
         self._loss_model = tf.keras.models.Model(inputs + ground_truth, total_loss)
 
+    def _training_data_generator(self, batch_size=32):
+        X, Y = self.training_data
+        if len(self.model.inputs) == 1:
+            X = [X]
+        if len(self.model.outputs) == 1:
+            Y = [Y]
+        idx = 0
+        while idx < len(X[0]):
+            x_slice = [x[idx: idx + batch_size] for x in X]
+            y_slice = [y[idx: idx + batch_size] for y in Y]
+            idx += batch_size
+            yield x_slice, y_slice
+
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
 
@@ -665,19 +678,15 @@ class WandbCallback(keras.callbacks.Callback):
         return metrics
 
     def _log_gradients(self):
-        if len(self.model.inputs) == 1:
-            x = [self.training_data[0]]
-        else:
-            x = self.training_data[0]
-        if len(self.model.outputs) == 1:
-            y = [self.training_data[1]]
-        else:
-            y  = self.training_data[1]
-        with tf.GradientTape() as tape:
-            loss = self._loss_model(x + y)
         weights = self. model.trainable_weights
-        grads = tape.gradient(loss, weights)
-        for (weight, grad) in zip(weights, grads):
+        grads_total = [tf.zeros_like(w) for w in weights]
+        for x, y in self._training_data_generator():
+            with tf.GradientTape() as tape:
+                loss = self._loss_model(x + y)
+            grads = tape.gradient(loss, weights)
+            for g1, g2 in zip(grads_total, grads):
+                g1 += g2
+        for (weight, grad) in zip(weights, grads_total):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad.numpy())
