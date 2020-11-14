@@ -159,7 +159,7 @@ if "keras" in sys.modules:
 else:
     add_import_hook("keras", _check_keras_version)
 
-
+import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
@@ -645,54 +645,18 @@ class WandbCallback(keras.callbacks.Callback):
         if not self.training_data:
             raise ValueError("Need to pass in training data if logging gradients")
 
-        X_train = self.training_data[0]
+        x_train = self.training_data[0]
         y_train = self.training_data[1]
         metrics = {}
-        weights = self.model.trainable_weights  # weight tensors
-        # filter down weights tensors to only ones which are trainable
-        weights = [
-            weight
-            for weight in weights
-            if self.model.get_layer(weight.name.split("/")[0]).trainable
-        ]
-
-        gradients = self.model.optimizer.get_gradients(
-            self.model.total_loss, weights
-        )  # gradient tensors
-        if hasattr(self.model, "targets"):
-            # TF < 1.14
-            target = self.model.targets[0]
-            sample_weight = self.model.sample_weights[0]
-        elif (
-            hasattr(self.model, "_training_endpoints")
-            and len(self.model._training_endpoints) > 0
-        ):
-            # TF > 1.14 TODO: not sure if we're handling sample_weight properly here...
-            target = self.model._training_endpoints[0].training_target.target
-            sample_weight = self.model._training_endpoints[
-                0
-            ].sample_weight or K.variable(1)
-        else:
-            wandb.termwarn(
-                "Couldn't extract gradients from your model, this could be an unsupported version of keras.  File an issue here: https://github.com/wandb/client",
-                repeat=False,
-            )
-            return metrics
-        input_tensors = [
-            self.model.inputs[0],  # input data
-            # how much to weight each sample by
-            sample_weight,
-            target,  # labels
-            K.learning_phase(),  # train or test mode
-        ]
-
-        get_gradients = K.function(inputs=input_tensors, outputs=gradients)
-        grads = get_gradients([X_train, np.ones(len(y_train)), y_train])
-
+        weights = self.model.trainable_weights
+        with tf.GradientTape() as tape:
+            y_pred = model(x_train, training=True)
+            loss = model.compiled_loss(tf.Variable(y_train), y_pred)
+        grads = tape.gradients(loss, weights)
         for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
-            ] = wandb.Histogram(grad)
+            ] = wandb.Histogram(grad.numpy())
 
         return metrics
 
