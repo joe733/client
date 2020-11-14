@@ -403,8 +403,9 @@ class WandbCallback(keras.callbacks.Callback):
             )
         if self.input_type and self.output_type is None and len(model.outputs) == 1:
             self.output_type = wandb.util.guess_data_type(model.outputs[0].shape)
-        self._build_loss_model()
-        self._get_training_data_batch_size()
+        if self.log_gradients:
+            self._build_loss_model()
+            self._get_training_data_batch_size()
 
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
