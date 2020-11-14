@@ -649,10 +649,13 @@ class WandbCallback(keras.callbacks.Callback):
         y_train = self.training_data[1]
         metrics = {}
         weights = self.model.trainable_weights
+        loss_f = self.model.loss
+        if not callable(loss_f):
+            loss_f = keras.losses.get(loss_f)
         with tf.GradientTape() as tape:
             y_pred = self.model(x_train, training=True)
-            loss = self.model.compiled_loss(tf.Variable(y_train), y_pred)
-        grads = tape.gradients(loss, weights)
+            loss = loss_f(y_train, y_pred)
+        grads = tape.gradient(loss, weights)
         for (weight, grad) in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
