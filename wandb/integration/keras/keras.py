@@ -348,7 +348,7 @@ class WandbCallback(keras.callbacks.Callback):
             total_loss = losses[0]
         else:
             total_loss = tf.keras.layers.add(losses)
-        self._loss_model = tf.keras.layers.Model(inputs + ground_truth, total_loss)
+        self._loss_model = tf.keras.models.Model(inputs + ground_truth, total_loss)
 
     def _implements_train_batch_hooks(self):
         return self.log_batch_frequency is not None
