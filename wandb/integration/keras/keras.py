@@ -345,7 +345,7 @@ class WandbCallback(keras.callbacks.Callback):
         y_batch = [y[0] for y in Y]
         y_batch_num_bytes = sum([y.itemsize * y.size for y in y_batch])
         batch_num_bytes = x_batch_num_bytes = y_batch_num_bytes
-        MAX_MB = 10
+        MAX_MB = 0.1
         self._training_data_batch_size = int(MAX_MB * 1024 * 1024 / batch_num_bytes)
         wandb.termlog("Batch size: " + str(self._training_data_batch_size))
 
