@@ -342,7 +342,7 @@ class WandbCallback(keras.callbacks.Callback):
         loss_f = self.model.loss
         if not callable(loss_f):
             loss_f = tf.keras.losses.get(loss_f)
-        for y_true, y_pred in zip(ground_truth, model_output):
+        for y_true, y_pred in zip(ground_truth, model_out):
             losses.append(loss_f(y_true, y_pred))
         total_loss = tf.keras.layers.add(loss)
         self._loss_model = tf.keras.layers.Model(inputs + ground_truth, total_loss)
